@@ -1,0 +1,147 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import ArticleCard from '../../../components/ArticleCard.astro';
+import { CATEGORIES, categoryMeta } from '../../../lib/site.mjs';
+import { articlesByCategory } from '../../../lib/articles.mjs';
+
+export async function getStaticPaths() {
+  return Object.keys(CATEGORIES).map((slug) => ({ params: { category: slug } }));
+}
+
+const { category } = Astro.params;
+const meta = categoryMeta(category);
+const articles = await articlesByCategory(category);
+---
+
+<Layout
+  title={`${meta.label} — Field Notes Library`}
+  description={meta.description}
+  active="library"
+>
+  <nav class="breadcrumbs" aria-label="Breadcrumb">
+    <a href="/library/">Library</a>
+    <span aria-hidden="true"> / </span>
+    <span aria-current="page">{meta.label}</span>
+  </nav>
+
+  <header class="page-header">
+    <p class="eyebrow">Category</p>
+    <h1>{meta.label}</h1>
+    <p>{meta.description}</p>
+  </header>
+
+  <div class="pills" role="navigation" aria-label="Other categories">
+    {Object.values(CATEGORIES).map((c) => (
+      <a
+        class:list={['pill', { active: c.slug === category }]}
+        href={`/library/categories/${c.slug}/`}
+        aria-current={c.slug === category ? 'page' : undefined}
+      >
+        {c.label}
+      </a>
+    ))}
+  </div>
+
+  <p class="count" data-testid="category-count" data-category={category}>
+    {articles.length} article{articles.length === 1 ? '' : 's'}
+  </p>
+
+  <ul class="article-grid">
+    {articles.map((article) => (
+      <li>
+        <ArticleCard article={article} />
+      </li>
+    ))}
+  </ul>
+
+  {articles.length === 0 && (
+    <div class="empty" data-testid="category-empty">
+      Nothing published in this category yet.
+    </div>
+  )}
+</Layout>
+
+<style>
+  .breadcrumbs {
+    display: flex;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    color: var(--muted);
+    margin-bottom: 1.4rem;
+  }
+  .breadcrumbs span[aria-current] {
+    color: var(--text);
+  }
+
+  .page-header {
+    margin-bottom: 1.4rem;
+  }
+  .page-header h1 {
+    margin: 0 0 0.6rem;
+    font-size: clamp(1.9rem, 4vw, 2.6rem);
+    letter-spacing: -0.015em;
+  }
+  .page-header p:not(.eyebrow) {
+    margin: 0;
+    color: var(--muted);
+    font-size: 1.02rem;
+    max-width: 60ch;
+  }
+  .eyebrow {
+    color: var(--accent);
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-size: 0.8rem;
+    margin: 0 0 0.5rem;
+  }
+
+  .pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.55rem;
+    margin-bottom: 1.6rem;
+  }
+  .pill {
+    display: inline-block;
+    padding: 0.4rem 0.85rem;
+    border-radius: 999px;
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+  .pill.active {
+    background: var(--accent-strong);
+    color: #fff;
+    border-color: var(--accent-strong);
+  }
+  .pill:hover {
+    color: var(--text);
+    text-decoration: none;
+  }
+
+  .count {
+    color: var(--muted);
+    font-size: 0.9rem;
+    margin: 0 0 0.8rem;
+  }
+
+  .article-grid {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1rem;
+  }
+
+  .empty {
+    padding: 2rem;
+    border: 1px dashed var(--border-strong);
+    border-radius: 1rem;
+    color: var(--muted);
+    text-align: center;
+  }
+</style>

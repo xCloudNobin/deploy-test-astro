@@ -1,0 +1,158 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import ArticleCard from '../../../components/ArticleCard.astro';
+import { getCollection, getEntry, render } from 'astro:content';
+import { categoryLabel } from '../../../lib/site.mjs';
+import { listArticles } from '../../../lib/articles.mjs';
+
+export async function getStaticPaths() {
+  const articles = await getCollection('articles', ({ data }) => !data.draft);
+  return articles.map((entry) => ({ params: { slug: entry.id } }));
+}
+
+const { slug } = Astro.params;
+const entry = await getEntry('articles', slug);
+
+if (!entry) {
+  return Astro.redirect('/404');
+}
+
+const { Content } = await render(entry);
+const dateLabel = entry.data.date.toLocaleDateString('en-US', {
+  year: 'numeric',
+  month: 'long',
+  day: 'numeric',
+});
+
+const siblings = await listArticles();
+const related = siblings
+  .filter((a) => a.category === entry.data.category && a.slug !== entry.id)
+  .slice(0, 3);
+---
+
+<Layout
+  title={`${entry.data.title} — Field Notes`}
+  description={entry.data.description}
+  active="library"
+>
+  <nav class="breadcrumbs" aria-label="Breadcrumb">
+    <a href="/library/">Library</a>
+    <span aria-hidden="true"> / </span>
+    <a href={`/library/categories/${entry.data.category}/`}>{categoryLabel(entry.data.category)}</a>
+    <span aria-hidden="true"> / </span>
+    <span aria-current="page">{entry.data.title}</span>
+  </nav>
+
+  <article class="article">
+    <header class="article-header">
+      <span class="pill">{categoryLabel(entry.data.category)}</span>
+      <h1>{entry.data.title}</h1>
+      <p class="byline">
+        <time datetime={entry.data.date.toISOString()}>{dateLabel}</time>
+        <span class="divider" aria-hidden="true">·</span>
+        <span aria-label={`Tags: ${entry.data.tags.join(', ')}`}>
+          {entry.data.tags.map((tag) => <span class="tag">#{tag}</span>)}
+        </span>
+      </p>
+      <p class="lede">{entry.data.description}</p>
+    </header>
+
+    <div class="prose" data-testid="article-content">
+      <Content />
+    </div>
+  </article>
+
+  <nav class="article-nav" aria-label="Article navigation">
+    <a class="button secondary" href="/library/">← Back to library</a>
+    <a class="button" href={`/library/categories/${entry.data.category}/`}>More {categoryLabel(entry.data.category)} →</a>
+  </nav>
+
+  {related.length > 0 && (
+    <aside class="related" aria-labelledby="related-heading">
+      <h2 id="related-heading">Also in {categoryLabel(entry.data.category)}</h2>
+      <ul class="article-grid">
+        {related.map((article) => (
+          <li>
+            <ArticleCard article={article} />
+          </li>
+        ))}
+      </ul>
+    </aside>
+  )}
+</Layout>
+
+<style>
+  .breadcrumbs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    color: var(--muted);
+    margin-bottom: 1.8rem;
+  }
+  .breadcrumbs span[aria-current] {
+    color: var(--text);
+  }
+
+  .article {
+    max-width: 76ch;
+  }
+
+  .article-header {
+    margin-bottom: 2rem;
+    padding-bottom: 1.6rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .article-header h1 {
+    margin: 0.9rem 0 0.7rem;
+    font-size: clamp(1.9rem, 4.5vw, 2.9rem);
+    line-height: 1.12;
+    letter-spacing: -0.02em;
+  }
+  .byline {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    color: var(--muted);
+    font-size: 0.9rem;
+    margin: 0 0 0.8rem;
+  }
+  .divider {
+    opacity: 0.6;
+  }
+  .tag {
+    color: var(--teal);
+    font-weight: 600;
+  }
+  .lede {
+    margin: 0;
+    color: var(--muted);
+    font-size: 1.12rem;
+    line-height: 1.65;
+    font-style: italic;
+  }
+
+  .article-nav {
+    display: flex;
+    gap: 0.9rem;
+    flex-wrap: wrap;
+    margin-top: 2.6rem;
+  }
+
+  .related {
+    margin-top: 3.2rem;
+  }
+  .related h2 {
+    font-size: 1.3rem;
+    margin: 0 0 1rem;
+  }
+  .article-grid {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
+  }
+</style>

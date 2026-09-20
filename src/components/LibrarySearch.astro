@@ -1,0 +1,371 @@
+---
+import { searchArticles } from '../lib/search.mjs';
+import { CATEGORIES } from '../lib/site.mjs';
+import ArticleCard from './ArticleCard.astro';
+
+export interface SearchItem {
+  slug: string;
+  title: string;
+  description: string;
+  category: string;
+  categoryLabel: string;
+  tags: string[];
+  date: string;
+  bodyText?: string;
+}
+
+export interface Props {
+  articles: Array<SearchItem>;
+  initialCategory?: string;
+}
+
+const { articles, initialCategory = '' } = Astro.props;
+
+const categories = Object.values(CATEGORIES);
+const initialQuery = '';
+
+const searchData = articles.map((a) => ({ ...a, date: new Date(a.date).toISOString() }));
+
+const initialResults = searchArticles(searchData, {
+  query: initialQuery,
+  category: initialCategory,
+}) as Array<{ article: SearchItem; score: number }>;
+
+const total = articles.length;
+const shown = initialResults.length;
+---
+
+<div class="lib-search" data-testid="library-search">
+  <form class="search-bar" data-search-form role="search">
+    <div class="search-field">
+      <svg
+        class="search-icon"
+        viewBox="0 0 24 24"
+        width="18"
+        height="18"
+        aria-hidden="true"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+      >
+        <circle cx="11" cy="11" r="7" />
+        <path d="m20 20-3.5-3.5" />
+      </svg>
+      <input
+        id="search-input"
+        name="q"
+        type="search"
+        inputmode="search"
+        placeholder="Search titles, tags, topics…"
+        autocomplete="off"
+        aria-label="Search the library"
+        data-search-input
+      />
+    </div>
+    <label class="search-select">
+      <span>Category</span>
+      <select name="category" aria-label="Filter by category" data-category-select>
+        <option value="">All categories</option>
+        {categories.map((c) => (
+          <option value={c.slug} selected={initialCategory === c.slug}>
+            {c.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  </form>
+
+  <p class="results-meta" data-results-meta role="status" aria-live="polite">
+    Showing {shown} of {total} articles
+  </p>
+
+  <div
+    hidden
+    data-search-index={JSON.stringify(searchData).replace(/</g, '\\u003c')}
+    data-testid="search-index"
+  ></div>
+
+  <ul class="article-grid" data-results-list>
+    {initialResults.map((result) => (
+      <li>
+        <ArticleCard article={result.article} />
+      </li>
+    ))}
+  </ul>
+
+  <div class="empty-state" data-empty-state hidden data-testid="empty-state">
+    <svg viewBox="0 0 24 24" width="34" height="34" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+      <circle cx="11" cy="11" r="7" />
+      <path d="m21 21-4.35-4.35M8 11h6" />
+    </svg>
+    <h2>Nothing matched your search</h2>
+    <p data-empty-message>Try a different term or clear the search.</p>
+    <button type="button" class="button secondary" data-clear>Clear search</button>
+  </div>
+</div>
+
+<script>
+  import { searchArticles, highlightTitle } from '../lib/search.mjs';
+  import { categoryLabel } from '../lib/site.mjs';
+
+  const root = document.querySelector('[data-search-form]');
+  const input = root?.querySelector('[data-search-input]');
+  const select = root?.querySelector('[data-category-select]');
+  const list = document.querySelector('[data-results-list]');
+  const meta = document.querySelector('[data-results-meta]');
+  const empty = document.querySelector('[data-empty-state]');
+  const emptyMessage = document.querySelector('[data-empty-message]');
+  const clearBtn = document.querySelector('[data-clear]');
+  const indexEl = document.querySelector('[data-testid="search-index"]');
+
+  const searchData = JSON.parse(indexEl.dataset.searchIndex);
+
+  function readUrlState() {
+    const qs = new URLSearchParams(window.location.search);
+    return {
+      q: qs.get('q') ?? '',
+      category: qs.get('category') ?? '',
+    };
+  }
+
+  function escapeHtml(value) {
+    return String(value)
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;');
+  }
+
+  function formatDate(iso) {
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime())
+      ? ''
+      : d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  }
+
+  function cardHtml(result, query) {
+    const a = result.article;
+    const title = highlightTitle(escapeHtml(a.title), query);
+    const date = formatDate(a.date);
+    const tags = (a.tags ?? [])
+      .map((tag) => `<span class="tag">#${escapeHtml(tag)}</span>`)
+      .join('');
+    return `<li>
+      <a class="article-card" href="/library/articles/${encodeURIComponent(a.slug)}/" data-testid="article-card">
+        <span class="pill">${escapeHtml(categoryLabel(a.category))}</span>
+        <h3 class="title">${title}</h3>
+        <p class="description">${escapeHtml(a.description)}</p>
+        <div class="meta">
+          ${date ? `<time datetime="${escapeHtml(a.date)}">${escapeHtml(date)}</time>` : ''}
+          <span class="tags" aria-label="Tags: ${escapeHtml((a.tags ?? []).join(', '))}">${tags}</span>
+        </div>
+      </a>
+    </li>`;
+  }
+
+  let state = readUrlState();
+  if (!state.category) state.category = select.value;
+  if (state.q) input.value = state.q;
+  if (state.category) select.value = state.category;
+
+  function render() {
+    const q = input.value.trim();
+    const category = select.value;
+    const results = searchArticles(searchData, { query: q, category });
+    const total = searchData.length;
+
+    if (q) {
+      const noun = results.length === 1 ? 'result' : 'results';
+      meta.textContent = `${results.length} ${noun} for “${q}”`;
+    } else {
+      meta.textContent = `Showing ${results.length} of ${total} articles`;
+    }
+
+    const showEmpty = q.length > 0 && results.length === 0;
+    empty.hidden = !showEmpty;
+    if (showEmpty) {
+      emptyMessage.textContent = `No articles found for “${q}”. Try a different term or clear the search.`;
+    }
+
+    list.innerHTML = results.map((result) => cardHtml(result, q)).join('');
+
+    const qs = new URLSearchParams();
+    if (q) qs.set('q', q);
+    if (category) qs.set('category', category);
+    const next = qs.toString();
+    const url = next ? `${window.location.pathname}?${next}` : window.location.pathname;
+    if (window.history.replaceState) window.history.replaceState(null, '', url);
+  }
+
+  let timer;
+  input.addEventListener('input', () => {
+    clearTimeout(timer);
+    timer = setTimeout(render, 50);
+  });
+  select.addEventListener('change', render);
+  clearBtn.addEventListener('click', () => {
+    input.value = '';
+    select.value = '';
+    render();
+    input.focus();
+  });
+
+  render();
+</script>
+
+<style>
+  .search-bar {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.9rem;
+    margin-bottom: 1.1rem;
+  }
+
+  .search-field {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .search-icon {
+    position: absolute;
+    left: 1rem;
+    color: var(--muted);
+    pointer-events: none;
+  }
+
+  #search-input {
+    width: 100%;
+    padding: 0.95rem 1rem 0.95rem 2.75rem;
+    border-radius: 0.9rem;
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 1rem;
+  }
+  #search-input::placeholder {
+    color: var(--muted);
+  }
+  #search-input:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  .search-select {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    font-size: 0.75rem;
+    color: var(--muted);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+
+  .search-select select {
+    padding: 0.9rem 1rem;
+    border-radius: 0.9rem;
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 0.95rem;
+  }
+
+  .results-meta {
+    color: var(--muted);
+    font-size: 0.9rem;
+    margin: 0 0 0.8rem;
+  }
+
+  .article-grid {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1rem;
+  }
+
+  .article-card {
+    display: block;
+    padding: 1.25rem 1.35rem;
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    background: linear-gradient(160deg, var(--surface), #0c1322);
+    transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    color: var(--text);
+  }
+  .article-card:hover {
+    transform: translateY(-3px);
+    border-color: var(--border-strong);
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.4);
+    text-decoration: none;
+  }
+  .title {
+    margin: 0.7rem 0 0.5rem;
+    font-size: 1.15rem;
+    line-height: 1.3;
+    color: var(--text);
+  }
+  .article-card:hover .title {
+    color: var(--accent);
+  }
+  .description {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.95rem;
+    line-height: 1.6;
+  }
+  .meta {
+    margin-top: 0.85rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .tags {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+  }
+  .tag {
+    color: var(--teal);
+    font-weight: 600;
+  }
+  .title :global(mark) {
+    background: rgba(122, 162, 255, 0.32);
+    color: #dbe7ff;
+    border-radius: 0.25rem;
+    padding: 0 0.15rem;
+  }
+
+  .empty-state {
+    margin-top: 1rem;
+    padding: 2.6rem 1.5rem;
+    text-align: center;
+    border: 1px dashed var(--border-strong);
+    border-radius: 1rem;
+    color: var(--muted);
+  }
+  .empty-state svg {
+    color: var(--muted);
+    margin-bottom: 0.6rem;
+  }
+  .empty-state h2 {
+    margin: 0.4rem 0 0.3rem;
+    color: var(--text);
+    font-size: 1.15rem;
+  }
+  .empty-state p {
+    margin: 0 0 1rem;
+  }
+
+  @media (max-width: 640px) {
+    .search-bar {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

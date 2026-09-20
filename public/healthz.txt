@@ -1,0 +1,5 @@
+Field Notes — static availability marker.
+
+This file only confirms the static site is being served. Liveness/readiness
+semantics for a static site are N/A: there is no database or backend process
+to probe, and honest deployment status is tracked in VERIFICATION.md.

@@ -1,0 +1,99 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import { CATEGORIES } from '../../../lib/site.mjs';
+import { listArticles } from '../../../lib/articles.mjs';
+
+const allArticles = await listArticles();
+const categoryList = Object.values(CATEGORIES);
+---
+
+<Layout
+  title="Categories — Field Notes Library"
+  description="All categories in the Field Notes library."
+  active="library"
+>
+  <nav class="breadcrumbs" aria-label="Breadcrumb">
+    <a href="/library/">Library</a>
+    <span aria-hidden="true"> / </span>
+    <span aria-current="page">Categories</span>
+  </nav>
+
+  <header class="page-header">
+    <p class="eyebrow">Categories</p>
+    <h1>Browse by topic</h1>
+  </header>
+
+  <div class="category-grid">
+    {categoryList.map((category) => {
+      const count = allArticles.filter((a) => a.category === category.slug).length;
+      return (
+        <a class="category-card" href={`/library/categories/${category.slug}/`}>
+          <h2>{category.label}</h2>
+          <p>{category.description}</p>
+          <span class="count">
+            {count} article{count === 1 ? '' : 's'} →
+          </span>
+        </a>
+      );
+    })}
+  </div>
+</Layout>
+
+<style>
+  .breadcrumbs {
+    display: flex;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    color: var(--muted);
+    margin-bottom: 1.4rem;
+  }
+  .breadcrumbs span[aria-current] {
+    color: var(--text);
+  }
+
+  .page-header {
+    margin-bottom: 1.6rem;
+  }
+  .page-header h1 {
+    margin: 0;
+    font-size: clamp(1.9rem, 4vw, 2.6rem);
+    letter-spacing: -0.015em;
+  }
+
+  .category-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1rem;
+  }
+
+  .category-card {
+    display: block;
+    padding: 1.5rem 1.6rem;
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    background: linear-gradient(160deg, var(--surface), #0c1322);
+    color: var(--text);
+    transition: transform 0.15s ease, border-color 0.15s ease;
+  }
+  .category-card:hover {
+    transform: translateY(-3px);
+    border-color: var(--border-strong);
+    text-decoration: none;
+  }
+  .category-card h2 {
+    margin: 0 0 0.5rem;
+    font-size: 1.2rem;
+    color: var(--accent);
+  }
+  .category-card p {
+    margin: 0 0 0.9rem;
+    color: var(--muted);
+    font-size: 0.95rem;
+    line-height: 1.6;
+  }
+  .count {
+    color: var(--teal);
+    font-weight: 700;
+    font-size: 0.9rem;
+  }
+</style>
