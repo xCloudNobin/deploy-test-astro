@@ -9,6 +9,45 @@ Result: **local-verified** — live xCloud deployment **NOT RUN**
 > xCloud provisioning or deployment was performed, so this is **local-verified only**,
 > **not deployment-verified**.
 
+## Correction
+
+The originally pushed commit `d3922986` was **not** clean. A verified re-check found:
+
+- **35 TypeScript errors** in `src/components/LibrarySearch.astro` client script:
+  untyped `document.querySelector(...)` results (`Element` instead of
+  `HTMLInputElement`/`HTMLSelectElement`/etc.), nullable DOM nodes used without
+  guards (`'input' is possibly null`, `'select' is possibly null`, …), implicit `any`
+  on function parameters/results (`cardHtml`, `escapeHtml`, `formatDate`, the
+  `results.map`/`tags.map` callbacks), and an implicitly-`any` debounce `timer`.
+- **1 hint**: unused `countOccurrences` function in `scripts/smoke.mjs`.
+
+The original PR text claiming `astro check → no errors` was **incorrect** and has been
+corrected. The fix commit (this one) resolves all of the above without disabling strict
+mode, without `ts-nocheck`, without silent broad `any`, and without excluding the
+component from the project.
+
+How the script is now typed:
+
+- **Typed selectors**: `document.querySelector<HTMLFormElement>(...)` /
+  `querySelector<HTMLInputElement>(...)` etc. where attribute selectors are used.
+- **Explicit runtime guards**: a `requireElement<T extends Element>(selector)`
+  helper throws if a required node is missing, so every DOM reference is a
+  concrete, non-null typed element; the embedded search index is parsed through a
+  typed `parseSearchIndex(raw: string | undefined): SearchItem[]` validator
+  (shape-checking each entry, empty result on malformed input).
+- **Meaningful data types**: `SearchItem`, `SearchResult`, `UrlState` types;
+  `escapeHtml(value: unknown): string`, `formatDate(iso: string): string`,
+  `cardHtml(result: SearchResult, query: string): string`,
+  `readUrlState(): UrlState`, `render(): void`, and
+  `let timer: ReturnType<typeof setTimeout> | undefined`.
+
+## Verified commit
+
+| Item | Value |
+|---|---|
+| Original (broken) commit | `d3922986` — 35 TS errors + 1 hint |
+| Fix commit (this one) | `39d6101` — see build marker (`commit=39d61014`) in generated footers |
+
 ## Live xCloud: NOT RUN
 
 | Item | Status |
@@ -48,35 +87,40 @@ $ npm audit
 > found 0 vulnerabilities
 ```
 
-### 2. Unit tests (pure search matcher)
-
-```bash
-$ npm run test:unit
-```
-
-All `tests/unit/search.test.mjs` cases passed: tokenization/stopwords, empty-query,
-title-vs-body ranking, multi-token AND matching, tag matching, category filter,
-no-match → empty result, and `<mark>` highlighting.
-
-### 3. Type check
+### 2. Type check (on final source)
 
 ```bash
 $ npm run check
-> astro check — no errors
+> Result (21 files):
+> - 0 errors
+> - 0 warnings
+> - 0 hints
 ```
 
-### 4. Production build
+### 3. Production build (on final source)
 
 ```bash
 $ npm run build
 ```
 
-`astro build` exited 0; output written to `dist/`.
+`astro build` exited 0; **17 pages built** and written to `dist/`. Generated build
+marker: `build-info: commit=39d61014 astro=7.3.3 pkg=1.0.0`.
+
+### 4. Unit tests (pure search matcher)
+
+```bash
+$ npm run test:unit
+```
+
+All 10 `tests/unit/search.test.mjs` cases passed (0 failed): normalize,
+tokenize/stopwords, empty-query, title-vs-body ranking, multi-token AND matching,
+tag matching, category filter, no-match → empty result, `scoreArticle` no-token
+behavior, and `<mark>` highlighting.
 
 ### 5. Production server + HTTP checks
 
-`npm run preview` (astro preview) served the built `dist/` on `127.0.0.1:4937`
-(unique port, isolated from defaults). Verified over HTTP:
+`npm test` ran the smoke suite, which builds, serves `dist/` on `127.0.0.1:4937`
+via `astro preview`, and verified over HTTP:
 
 - `/` 200 with build marker and hero content
 - `/library/` 200 with search UI and “Showing 9 of 9 articles”
@@ -91,7 +135,8 @@ $ npm run build
 
 ### 6. Browser search verification (real Chromium, headless)
 
-`dump-dom` against the served `dist/` confirmed actual client-side matching:
+`dump-dom` against the served `dist/` confirmed actual client-side matching. The
+browser searches are **unchanged** and passing:
 
 | Scenario | Result |
 |---|---|
@@ -109,16 +154,16 @@ so results are deep-linkable.)
 $ npm test
 ```
 
-Unit tests + full smoke script passed (`SMOKE_RESULT=PASS`), **47 checks, 0 failed,
-0 skipped**. The smoke script builds, serves, checks HTTP + disk layout + browser
-behavior, then shuts the server down cleanly; exit status is propagated
-(no pipelines masking results).
+Unit tests + full smoke script passed on the exact final source:
+**47 checks, 0 failed, 0 skipped** (`SMOKE_RESULT=PASS`). The smoke script builds,
+serves, checks HTTP + disk layout + browser behavior, then shuts the server down
+cleanly; exit status is propagated (no pipelines masking results).
 
 ## Build marker
 
 `scripts/build-info.mjs` generates a gitignored `src/generated/build-info.mjs`
 (commit SHA, build time, astro version) on every `dev`/`build`; the footer of
-every page displays it. Verified present in served HTML.
+every page displays it. Verified present in served HTML as `commit=39d61014`.
 
 ## Health / readiness / persistence
 
