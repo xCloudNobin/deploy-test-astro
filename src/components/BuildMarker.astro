@@ -1,0 +1,21 @@
+---
+import { buildInfo } from '../generated/build-info.mjs';
+---
+
+<span
+  class="build-marker"
+  role="note"
+  data-testid="build-marker"
+  title={`commit ${buildInfo.commitFull || buildInfo.commit}`}
+>
+  static · v{buildInfo.packageVersion} · commit {buildInfo.commit} · astro {buildInfo.astroVersion} · {buildInfo.builtAt.slice(0, 10)}
+</span>
+
+<style>
+  .build-marker {
+    font-variant-numeric: tabular-nums;
+    font-size: 0.78rem;
+    color: var(--muted);
+    opacity: 0.85;
+  }
+</style>

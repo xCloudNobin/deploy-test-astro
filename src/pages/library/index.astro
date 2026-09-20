@@ -1,0 +1,58 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import LibrarySearch from '../../components/LibrarySearch.astro';
+import { CATEGORIES } from '../../lib/site.mjs';
+import { listArticles } from '../../lib/articles.mjs';
+
+const allArticles = await listArticles();
+const totalPerCategory: Record<string, number> = {};
+for (const c of Object.values(CATEGORIES)) {
+  totalPerCategory[c.slug] = allArticles.filter((a) => a.category === c.slug).length;
+}
+---
+
+<Layout title="Library — Field Notes" description="Browse and search every note in the Field Notes library." active="library">
+  <header class="page-header">
+    <p class="eyebrow">Library</p>
+    <h1>Search & browse all notes</h1>
+    <p>
+      {allArticles.length} static articles across{' '}
+      {Object.values(CATEGORIES).map((c, i) => (
+        <>
+          {i > 0 && <span> · </span>}
+          <a href={`/library/categories/${c.slug}/`}>
+            {c.label} ({totalPerCategory[c.slug]})
+          </a>
+        </>
+      ))}
+      . Search runs entirely in your browser — content is embedded in this page at build time.
+    </p>
+  </header>
+
+  <LibrarySearch articles={allArticles} />
+</Layout>
+
+<style>
+  .page-header {
+    margin-bottom: 2rem;
+  }
+  .page-header h1 {
+    margin: 0 0 0.8rem;
+    font-size: clamp(1.9rem, 4vw, 2.8rem);
+    letter-spacing: -0.015em;
+  }
+  .page-header p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 1.02rem;
+    line-height: 1.7;
+  }
+  .eyebrow {
+    color: var(--accent);
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-size: 0.8rem;
+    margin: 0 0 0.6rem;
+  }
+</style>

@@ -1,14 +1,193 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import ArticleCard from '../components/ArticleCard.astro';
+import { CATEGORIES, SITE } from '../lib/site.mjs';
+import { listArticles } from '../lib/articles.mjs';
+import hero from '../assets/hero.svg';
+
+const allArticles = await listArticles();
+const recent = allArticles.slice(0, 3);
+const categoryList = Object.values(CATEGORIES);
 ---
 
-<Layout title="Astro Deployment Test" description="A minimal Astro site for testing Git deployments.">
-  <section class="card">
-    <div class="eyebrow">Deployment successful</div>
-    <h1>Hello, Astro!</h1>
-    <p>
-      This static site was created to verify Git-based Astro builds and deployments.
-    </p>
-    <a class="button" href="/about">About this project</a>
+<Layout title="Field Notes — a small static library" description={SITE.description} active="home">
+  <section class="hero">
+    <div class="hero-copy">
+      <p class="eyebrow">A tiny knowledge base · built with Astro</p>
+      <h1>{SITE.tagline}</h1>
+      <p class="lede">
+        A static multi-page library running entirely on files: article content lives in an Astro
+        content collection, every route is pre-rendered into <code>dist/</code>, and search runs
+        here on the client — no database, no backend.
+      </p>
+      <div class="hero-actions">
+        <a class="button" href="/library/">Browse the library</a>
+        <a class="button secondary" href="/about/">How it is built</a>
+      </div>
+    </div>
+    <img class="hero-art" src={hero.src} alt="Illustration of an open book beside a search lens" />
+  </section>
+
+  <section class="section" aria-labelledby="categories-heading">
+    <h2 id="categories-heading">Categories</h2>
+    <div class="category-grid">
+      {categoryList.map((category) => (
+        <a class="category-card" href={`/library/categories/${category.slug}/`}>
+          <h3>{category.label}</h3>
+          <p>{category.description}</p>
+          <span class="category-link">Browse {category.label} →</span>
+        </a>
+      ))}
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="recent-heading">
+    <div class="section-head">
+      <h2 id="recent-heading">Recent notes</h2>
+      <a class="see-all" href="/library/">See all {allArticles.length} articles →</a>
+    </div>
+    <ul class="article-grid">
+      {recent.map((article) => (
+        <li>
+          <ArticleCard article={article} />
+        </li>
+      ))}
+    </ul>
   </section>
 </Layout>
+
+<style>
+  .hero {
+    display: grid;
+    grid-template-columns: 1.2fr 0.8fr;
+    gap: 2.5rem;
+    align-items: center;
+    padding: 1.5rem 0 2.5rem;
+  }
+
+  .eyebrow {
+    color: var(--accent);
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-size: 0.8rem;
+    margin: 0 0 1rem;
+  }
+
+  h1 {
+    margin: 0 0 1.1rem;
+    font-size: clamp(2.2rem, 5.5vw, 3.6rem);
+    line-height: 1.04;
+    letter-spacing: -0.02em;
+    max-width: 14ch;
+  }
+
+  .lede {
+    color: var(--muted);
+    font-size: 1.08rem;
+    line-height: 1.7;
+    max-width: 56ch;
+    margin: 0 0 1.6rem;
+  }
+  .lede code {
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 0.9em;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 0.3rem;
+    padding: 0.1rem 0.35rem;
+    color: var(--teal);
+  }
+
+  .hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.9rem;
+  }
+
+  .hero-art {
+    width: 100%;
+    max-width: 460px;
+    height: auto;
+    border-radius: 1.2rem;
+    border: 1px solid var(--border);
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+  }
+
+  .section {
+    margin-top: 3.4rem;
+  }
+
+  .section h2 {
+    font-size: 1.5rem;
+    margin: 0 0 1.1rem;
+    letter-spacing: -0.01em;
+  }
+
+  .category-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1rem;
+  }
+
+  .category-card {
+    display: block;
+    padding: 1.4rem 1.5rem;
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    background: linear-gradient(160deg, var(--surface), #0c1322);
+    color: var(--text);
+    transition: transform 0.15s ease, border-color 0.15s ease;
+  }
+  .category-card:hover {
+    transform: translateY(-3px);
+    border-color: var(--border-strong);
+    text-decoration: none;
+  }
+  .category-card h3 {
+    margin: 0 0 0.5rem;
+    font-size: 1.15rem;
+    color: var(--accent);
+  }
+  .category-card p {
+    margin: 0 0 0.8rem;
+    color: var(--muted);
+    font-size: 0.95rem;
+    line-height: 1.6;
+  }
+  .category-link {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--teal);
+  }
+
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .see-all {
+    font-size: 0.92rem;
+    font-weight: 600;
+  }
+
+  .article-grid {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1rem;
+  }
+
+  @media (max-width: 860px) {
+    .hero {
+      grid-template-columns: 1fr;
+    }
+    .hero-art {
+      max-width: 100%;
+    }
+  }
+</style>
