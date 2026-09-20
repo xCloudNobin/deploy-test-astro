@@ -125,10 +125,6 @@ function browserAvailable() {
   return candidates.find(existsSync);
 }
 
-function countOccurrences(haystack, needle) {
-  return haystack.split(needle).length - 1;
-}
-
 function stripScriptBlocks(dom) {
   return String(dom).replace(/<script[\s\S]*?<\/script>/gi, '');
 }

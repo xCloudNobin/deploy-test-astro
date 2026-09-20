@@ -109,19 +109,72 @@ const shown = initialResults.length;
   import { searchArticles, highlightTitle } from '../lib/search.mjs';
   import { categoryLabel } from '../lib/site.mjs';
 
-  const root = document.querySelector('[data-search-form]');
-  const input = root?.querySelector('[data-search-input]');
-  const select = root?.querySelector('[data-category-select]');
-  const list = document.querySelector('[data-results-list]');
-  const meta = document.querySelector('[data-results-meta]');
-  const empty = document.querySelector('[data-empty-state]');
-  const emptyMessage = document.querySelector('[data-empty-message]');
-  const clearBtn = document.querySelector('[data-clear]');
-  const indexEl = document.querySelector('[data-testid="search-index"]');
+  type SearchItem = {
+    slug: string;
+    title: string;
+    description: string;
+    category: string;
+    categoryLabel: string;
+    tags: string[];
+    date: string;
+    bodyText?: string;
+  };
 
-  const searchData = JSON.parse(indexEl.dataset.searchIndex);
+  type SearchResult = {
+    article: SearchItem;
+    score: number;
+  };
 
-  function readUrlState() {
+  type UrlState = {
+    q: string;
+    category: string;
+  };
+
+  function parseSearchIndex(raw: string | undefined): SearchItem[] {
+    try {
+      const parsed: unknown = JSON.parse(raw ?? '[]');
+      const items: unknown[] = Array.isArray(parsed) ? parsed : [];
+      return items.filter((item): item is SearchItem => {
+        if (typeof item !== 'object' || item === null) return false;
+        const record = item as Record<string, unknown>;
+        return (
+          typeof record.slug === 'string' &&
+          typeof record.title === 'string' &&
+          typeof record.description === 'string' &&
+          typeof record.category === 'string' &&
+          typeof record.categoryLabel === 'string' &&
+          Array.isArray(record.tags) &&
+          record.tags.every((tag) => typeof tag === 'string') &&
+          typeof record.date === 'string' &&
+          (record.bodyText === undefined || typeof record.bodyText === 'string')
+        );
+      });
+    } catch {
+      return [];
+    }
+  }
+
+  function requireElement<T extends Element>(selector: string, root: Document | Element = document): T {
+    const el = root.querySelector(selector);
+    if (!el) throw new Error(`[library-search] required element not found: ${selector}`);
+    return el as T;
+  }
+
+  const root = document.querySelector<HTMLFormElement>('[data-search-form]');
+  if (!root) throw new Error('[library-search] search form element missing');
+
+  const input = requireElement<HTMLInputElement>('[data-search-input]', root);
+  const select = requireElement<HTMLSelectElement>('[data-category-select]', root);
+  const list = requireElement<HTMLUListElement>('[data-results-list]');
+  const meta = requireElement<HTMLElement>('[data-results-meta]');
+  const empty = requireElement<HTMLElement>('[data-empty-state]');
+  const emptyMessage = requireElement<HTMLElement>('[data-empty-message]');
+  const clearBtn = requireElement<HTMLButtonElement>('[data-clear]');
+  const indexEl = requireElement<HTMLElement>('[data-testid="search-index"]');
+
+  const searchData = parseSearchIndex(indexEl.dataset.searchIndex);
+
+  function readUrlState(): UrlState {
     const qs = new URLSearchParams(window.location.search);
     return {
       q: qs.get('q') ?? '',
@@ -129,7 +182,7 @@ const shown = initialResults.length;
     };
   }
 
-  function escapeHtml(value) {
+  function escapeHtml(value: unknown): string {
     return String(value)
       .replaceAll('&', '&amp;')
       .replaceAll('<', '&lt;')
@@ -137,14 +190,14 @@ const shown = initialResults.length;
       .replaceAll('"', '&quot;');
   }
 
-  function formatDate(iso) {
+  function formatDate(iso: string): string {
     const d = new Date(iso);
     return Number.isNaN(d.getTime())
       ? ''
       : d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
   }
 
-  function cardHtml(result, query) {
+  function cardHtml(result: SearchResult, query: string): string {
     const a = result.article;
     const title = highlightTitle(escapeHtml(a.title), query);
     const date = formatDate(a.date);
@@ -169,10 +222,10 @@ const shown = initialResults.length;
   if (state.q) input.value = state.q;
   if (state.category) select.value = state.category;
 
-  function render() {
+  function render(): void {
     const q = input.value.trim();
     const category = select.value;
-    const results = searchArticles(searchData, { query: q, category });
+    const results = searchArticles(searchData, { query: q, category }) as SearchResult[];
     const total = searchData.length;
 
     if (q) {
@@ -198,7 +251,7 @@ const shown = initialResults.length;
     if (window.history.replaceState) window.history.replaceState(null, '', url);
   }
 
-  let timer;
+  let timer: ReturnType<typeof setTimeout> | undefined;
   input.addEventListener('input', () => {
     clearTimeout(timer);
     timer = setTimeout(render, 50);
